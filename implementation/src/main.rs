@@ -7,7 +7,7 @@ fn main() {
     if args.len() < 2 {
         println!("Execute o exercício com: cargo run <exercise_number>");
         println!("  01 - Collision attack on xor32_hash");
-        // println!("  02 - Second pre-image attack");
+        println!("  02 - Second pre-image attack");
         // println!("  03 - First pre-image attack");
         // println!("  04 - Collision with birthday paradox");
         // println!("  05 - Second pre-image brute force");
@@ -17,28 +17,22 @@ fn main() {
 
     match args[1].as_str() {
         "01" => exercise01::run(),
+        "02" => exercise02::run(),
         _ => println!("Exercício não encontrado!"),
     }
 }
 
+fn xor32_hash(s: &str) -> u32 {
+    let mut h: u32 = 0;
+    for (i, byte) in s.bytes().enumerate() {
+        let shift = (i % 4) * 8;
+        h ^= (byte as u32) << shift;
+    }
+    h
+}
+
 mod exercise01 {
     use super::*;
-
-    /// xor32_hash
-    ///
-    /// vulnerabilidade: o padrão de shift se repete a cada 4 bytes!
-    /// - Posição 0,4: shift 0  (bits 0-7)
-    /// - Posição 1,5: shift 8  (bits 8-15)
-    /// - Posição 2,6: shift 16 (bits 16-23)
-    /// - Posição 3,7: shift 24 (bits 24-31)
-    fn xor32_hash(s: &str) -> u32 {
-        let mut h: u32 = 0;
-        for (i, byte) in s.bytes().enumerate() {
-            let shift = (i % 4) * 8;
-            h ^= (byte as u32) << shift;
-        }
-        h
-    }
 
     /// Analisa e mostra como cada byte contribui para o hash
     fn analyze_hash(s: &str) -> u32 {
@@ -122,6 +116,63 @@ mod exercise01 {
 
         if verify_collision(&str1, &str2) {
             save_solution(&str1, &str2);
+        }
+    }
+}
+
+mod exercise02 {
+    use super::*;
+
+    /// Second Pre-image Attack:
+    ///
+    /// "bitcoin0" tem 8 bytes e produz um hash específico.
+    /// Método 1: Se "bitcoin0" tiver exatamente 8 caracteres, trocamos os blocos
+    fn find_second_preimage(target: &str) -> Option<String> {
+        let target_hash = xor32_hash(target);
+
+        println!("Target: '{}'", target);
+        println!("Target hash: {:08x}", target_hash);
+        println!("Target length: {} bytes\n", target.len());
+
+        // Método 1: Se tiver 8 bytes, trocar blocos de 4
+        if target.len() == 8 {
+            let candidate = format!("{}{}", &target[4..8], &target[0..4]);
+            let candidate_hash = xor32_hash(&candidate);
+
+            println!("  Candidate: '{}'", candidate);
+            println!("  Candidate hash: {:08x}", candidate_hash);
+
+            if candidate_hash == target_hash && candidate != target {
+                return Some(candidate);
+            }
+        }
+
+        None
+    }
+
+    fn save_solution(solution: &str) {
+        let content = format!("{}\n", solution);
+        let path = "../solutions/exercise02.txt";
+
+        fs::write(path, content)
+            .expect("Erro ao escrever o arquivo");
+    }
+
+    pub fn run() {
+        println!("Second Pre-image Attack");
+        println!();
+
+        let target = "bitcoin0";
+
+        if let Some(solution) = find_second_preimage(target) {
+            println!("  Segunda pré-imagem encontrada!");
+            println!("  Original: '{}'", target);
+            println!("  Encontrada: '{}'", solution);
+            println!("  Hash: {:08x}", xor32_hash(&solution));
+
+            save_solution(&solution);
+        } else {
+            println!("Não foi possível encontrar segunda pré-imagem com métodos simples.");
         }
     }
 }
