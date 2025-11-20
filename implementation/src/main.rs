@@ -9,7 +9,7 @@ fn main() {
         println!("  01 - Collision attack on xor32_hash");
         println!("  02 - Second pre-image attack");
         println!("  03 - First pre-image attack");
-        // println!("  04 - Collision with birthday paradox");
+        println!("  04 - Collision with birthday paradox");
         // println!("  05 - Second pre-image brute force");
         // println!("  06 - Three partial collision using SHA256");
         return;
@@ -19,6 +19,7 @@ fn main() {
         "01" => exercise01::run(),
         "02" => exercise02::run(),
         "03" => exercise03::run(),
+        "04" => exercise04::run(),
         _ => println!("Exercício não encontrado!"),
     }
 }
@@ -245,4 +246,85 @@ mod exercise03 {
             println!("Não foi possível encontrar pré-imagem com métodos simples.");
         }
     }
+}
+
+mod exercise04 {
+    use super::*;
+    use std::collections::HashMap;
+    use rand::Rng;
+
+    fn simple_hash(s: &str) -> u32 {
+        let mut hash_value = 0_u32;
+        for byte in s.bytes() {
+            hash_value = hash_value
+            .wrapping_shl(5)
+            .wrapping_sub(hash_value)
+            .wrapping_add(byte as u32) & 0xFFFFFFFF;
+        }
+        hash_value
+    }
+
+    fn generate_string(_len: usize) -> String {
+       let mut rng = rand::thread_rng();
+        let chars: Vec<u8> = (b'a'..=b'z')
+            .chain(b'A'..=b'Z')
+            .chain(b'0'..=b'9')
+            .collect();
+
+        (0..8)
+            .map(|_| {
+                let idx = rng.gen_range(0..chars.len());
+                chars[idx] as char
+            })
+            .collect()
+    }
+
+    fn find_collision_birthday() -> Option<(String, String)> {
+
+        let mut hash_map: HashMap<u32, String> = HashMap::new();
+        let mut attempts = 0;
+
+        loop {
+            attempts += 1;
+
+            let candidate = generate_string(8);
+            let hash = simple_hash(&candidate);
+
+            if let Some(original) = hash_map.get(&hash) {
+                println!("\n✓ COLISÃO ENCONTRADA após {} tentativas!", attempts);
+                println!("  String 1: '{}'", original);
+                println!("  String 2: '{}'", candidate);
+                println!("  Hash: {:08x}", hash);
+
+                return Some((original.clone(), candidate));
+            }
+
+            hash_map.insert(hash, candidate);
+
+        }
+    }
+
+    fn save_solution(str1: &str, str2: &str) {
+        let content = format!("{},{}\n", str1, str2);
+        let path = "../solutions/exercise04.txt";
+
+        fs::write(path, content)
+            .expect("Erro ao escrever o arquivo");
+    }
+
+    pub fn run() {
+        println!();
+
+        if let Some((str1, str2)) = find_collision_birthday() {
+            let hash1 = simple_hash(&str1);
+            let hash2 = simple_hash(&str2);
+            
+            println!("  '{}' -> {:08x}", str1, hash1);
+            println!("  '{}' -> {:08x}", str2, hash2);
+            println!("  Iguais? {}", hash1 == hash2);
+
+            save_solution(&str1, &str2);
+        }
+    }
+
 }
