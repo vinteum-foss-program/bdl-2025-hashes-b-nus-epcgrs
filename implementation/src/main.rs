@@ -8,7 +8,7 @@ fn main() {
         println!("Execute o exercício com: cargo run <exercise_number>");
         println!("  01 - Collision attack on xor32_hash");
         println!("  02 - Second pre-image attack");
-        // println!("  03 - First pre-image attack");
+        println!("  03 - First pre-image attack");
         // println!("  04 - Collision with birthday paradox");
         // println!("  05 - Second pre-image brute force");
         // println!("  06 - Three partial collision using SHA256");
@@ -18,6 +18,7 @@ fn main() {
     match args[1].as_str() {
         "01" => exercise01::run(),
         "02" => exercise02::run(),
+        "03" => exercise03::run(),
         _ => println!("Exercício não encontrado!"),
     }
 }
@@ -173,6 +174,75 @@ mod exercise02 {
             save_solution(&solution);
         } else {
             println!("Não foi possível encontrar segunda pré-imagem com métodos simples.");
+        }
+    }
+}
+
+mod exercise03 {
+    use super::*;
+
+    fn find_preimage(target_hash: u32) -> Option<String> {
+        println!("Target hash: {:08x}", target_hash);
+
+        // 4 bytes do hash
+        let b0 = (target_hash & 0x000000FF) as u8;
+        let b1 = ((target_hash & 0x0000FF00) >> 8) as u8;
+        let b2 = ((target_hash & 0x00FF0000) >> 16) as u8;
+        let b3 = ((target_hash & 0xFF000000) >> 24) as u8;
+
+        println!("Bytes do hash: 0x{:02x} 0x{:02x} 0x{:02x} 0x{:02x}", b0, b1, b2, b3);
+        
+        // primeiros 4 qualquer coisa (ASCII gráfico)
+        
+        let c0 = b'1';
+        let c1 = b'2'; 
+        let c2 = b'3';
+        let c3 = b'4';
+        
+        // Hash parcial dos primeiros 4 bytes
+        let partial = (c0 as u32) | ((c1 as u32) << 8) | ((c2 as u32) << 16) | ((c3 as u32) << 24);
+        
+        // target_hash = partial XOR (c4 | c5<<8 | c6<<16 | c7<<24)
+        // remaining = target_hash XOR partial
+        let remaining = target_hash ^ partial;
+        
+        let c4 = (remaining & 0xFF) as u8;
+        let c5 = ((remaining >> 8) & 0xFF) as u8;
+        let c6 = ((remaining >> 16) & 0xFF) as u8;
+        let c7 = ((remaining >> 24) & 0xFF) as u8;
+        
+        println!("Primeiros 4: {} {} {} {}", c0 as char, c1 as char, c2 as char, c3 as char);
+        println!("Calculados: 0x{:02x} 0x{:02x} 0x{:02x} 0x{:02x}", c4, c5, c6, c7);
+    
+        let result = format!("{}{}{}{}{}{}{}{}", 
+            c0 as char, c1 as char, c2 as char, c3 as char,
+            c4 as char, c5 as char, c6 as char, c7 as char);
+        println!("✓ Encontrado: '{}'", result);
+        return Some(result);
+    }
+
+    fn save_solution(solution: &str) {
+        let content = format!("{}\n", solution);
+        let path = "../solutions/exercise03.txt";
+
+        fs::write(path, content)
+            .expect("Erro ao escrever o arquivo");
+    }
+
+    pub fn run() {
+        println!("Pre-image Attack '1b575451'");
+        println!();
+
+        let target_hash: u32 = 0x1b575451;
+        
+        if let Some(solution) = find_preimage(target_hash) {
+            println!("  Pré-imagem encontrada!");
+            println!("  Encontrada: '{}'", solution);
+            println!("  Hash: {:08x}", xor32_hash(&solution));
+
+            save_solution(&solution);
+        } else {
+            println!("Não foi possível encontrar pré-imagem com métodos simples.");
         }
     }
 }
