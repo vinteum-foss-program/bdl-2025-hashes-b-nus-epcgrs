@@ -68,11 +68,7 @@ mod exercise01 {
     /// Como o padrão de shift se repete a cada 4 bytes, podemos trocar
     /// os blocos de 4 caracteres e obter o mesmo hash!
     fn swap_blocks() -> (String, String) {
-        // Fato interessante:
-        // String 'É' possui 2 bytes em UTF-8 (0xC3 0xA9) 
-        // portanto vai ter 8 bytes no total 
-        // e 8 caracteres ASCII para achar colisão
-        let str1 = "éosguri".to_string();
+        let str1 = "ehosguri".to_string();
         // Troca os blocos: posições 0-3 com 4-7
         let str2 = format!("{}{}", &str1[4..8], &str1[0..4]);
 
