@@ -1,5 +1,10 @@
+use core::str;
 use std::env;
 use std::fs;
+use rand::Rng;
+use rayon::prelude::*;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -10,7 +15,7 @@ fn main() {
         println!("  02 - Second pre-image attack");
         println!("  03 - First pre-image attack");
         println!("  04 - Collision with birthday paradox");
-        // println!("  05 - Second pre-image brute force");
+        println!("  05 - Second pre-image brute force");
         // println!("  06 - Three partial collision using SHA256");
         return;
     }
@@ -20,6 +25,7 @@ fn main() {
         "02" => exercise02::run(),
         "03" => exercise03::run(),
         "04" => exercise04::run(),
+        "05" => exercise05::run(),
         _ => println!("Exercício não encontrado!"),
     }
 }
@@ -31,6 +37,50 @@ fn xor32_hash(s: &str) -> u32 {
         h ^= (byte as u32) << shift;
     }
     h
+}
+
+fn simple_hash_bytes(bytes: &[u8]) -> u32 {
+    let mut hash_value = 0_u32;
+    for &byte in bytes {
+        hash_value = hash_value
+            .wrapping_shl(5)
+            .wrapping_sub(hash_value)
+            .wrapping_add(byte as u32);
+    }
+    hash_value
+}
+
+fn simple_hash(s: &str) -> u32 {
+    simple_hash_bytes(s.as_bytes())
+}
+
+
+fn save_solution(exercise_number: &str, str1: &str, str2: Option<&str>) {
+
+    let content = match str2 {
+        Some(value_str) =>  format!("{},{}\n", str1, value_str),
+        None => format!("{}\n", str1)
+    };
+
+    let path = format!("../solutions/exercise{}.txt", exercise_number);
+
+    fs::write(path, content)
+        .expect("Erro ao escrever o arquivo");
+}
+
+fn generate_string(_len: usize) -> String {
+    let mut rng = rand::thread_rng();
+    let chars: Vec<u8> = (b'a'..=b'z')
+        .chain(b'A'..=b'Z')
+        .chain(b'0'..=b'9')
+        .collect();
+
+    (0..8)
+        .map(|_| {
+            let idx = rng.gen_range(0..chars.len());
+            chars[idx] as char
+        })
+        .collect()
 }
 
 mod exercise01 {
@@ -103,21 +153,13 @@ mod exercise01 {
         }
     }
 
-    fn save_solution(str1: &str, str2: &str) {
-        let content = format!("{},{}\n", str1, str2);
-        let path = "../solutions/exercise01.txt";
-
-        fs::write(path, content)
-            .expect("Erro ao escrever o arquivo de solução");
-    }
-
     pub fn run() {
         println!("Ataque de Colisão em xor32_hash");
 
         let (str1, str2) = swap_blocks();
 
         if verify_collision(&str1, &str2) {
-            save_solution(&str1, &str2);
+            save_solution("01", &str1, Some(&str2));
         }
     }
 }
@@ -152,14 +194,6 @@ mod exercise02 {
         None
     }
 
-    fn save_solution(solution: &str) {
-        let content = format!("{}\n", solution);
-        let path = "../solutions/exercise02.txt";
-
-        fs::write(path, content)
-            .expect("Erro ao escrever o arquivo");
-    }
-
     pub fn run() {
         println!("Second Pre-image Attack");
         println!();
@@ -172,7 +206,7 @@ mod exercise02 {
             println!("  Encontrada: '{}'", solution);
             println!("  Hash: {:08x}", xor32_hash(&solution));
 
-            save_solution(&solution);
+            save_solution("02", &solution, None);
         } else {
             println!("Não foi possível encontrar segunda pré-imagem com métodos simples.");
         }
@@ -222,14 +256,6 @@ mod exercise03 {
         return Some(result);
     }
 
-    fn save_solution(solution: &str) {
-        let content = format!("{}\n", solution);
-        let path = "../solutions/exercise03.txt";
-
-        fs::write(path, content)
-            .expect("Erro ao escrever o arquivo");
-    }
-
     pub fn run() {
         println!("Pre-image Attack '1b575451'");
         println!();
@@ -241,7 +267,7 @@ mod exercise03 {
             println!("  Encontrada: '{}'", solution);
             println!("  Hash: {:08x}", xor32_hash(&solution));
 
-            save_solution(&solution);
+            save_solution("03", &solution, None);
         } else {
             println!("Não foi possível encontrar pré-imagem com métodos simples.");
         }
@@ -251,33 +277,7 @@ mod exercise03 {
 mod exercise04 {
     use super::*;
     use std::collections::HashMap;
-    use rand::Rng;
 
-    fn simple_hash(s: &str) -> u32 {
-        let mut hash_value = 0_u32;
-        for byte in s.bytes() {
-            hash_value = hash_value
-            .wrapping_shl(5)
-            .wrapping_sub(hash_value)
-            .wrapping_add(byte as u32) & 0xFFFFFFFF;
-        }
-        hash_value
-    }
-
-    fn generate_string(_len: usize) -> String {
-       let mut rng = rand::thread_rng();
-        let chars: Vec<u8> = (b'a'..=b'z')
-            .chain(b'A'..=b'Z')
-            .chain(b'0'..=b'9')
-            .collect();
-
-        (0..8)
-            .map(|_| {
-                let idx = rng.gen_range(0..chars.len());
-                chars[idx] as char
-            })
-            .collect()
-    }
 
     fn find_collision_birthday() -> Option<(String, String)> {
 
@@ -304,14 +304,6 @@ mod exercise04 {
         }
     }
 
-    fn save_solution(str1: &str, str2: &str) {
-        let content = format!("{},{}\n", str1, str2);
-        let path = "../solutions/exercise04.txt";
-
-        fs::write(path, content)
-            .expect("Erro ao escrever o arquivo");
-    }
-
     pub fn run() {
         println!();
 
@@ -323,8 +315,69 @@ mod exercise04 {
             println!("  '{}' -> {:08x}", str2, hash2);
             println!("  Iguais? {}", hash1 == hash2);
 
-            save_solution(&str1, &str2);
+            save_solution("04", &str1, Some(&str2));
         }
     }
 
+}
+
+mod exercise05 {
+    use super::*;
+    const CHARSET: &[u8] = b"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+
+    fn find_name_second_preimage(name: &str) -> Option<String> {
+        let target_hash = simple_hash(name);
+        println!("Buscando colisão para: '{}' (Hash: {:08x})", name, target_hash);
+        
+        let found_flag = Arc::new(AtomicBool::new(false));
+
+        let result = (0..u64::MAX).into_par_iter().find_map_any(|seed| {
+            if found_flag.load(Ordering::Relaxed) {
+                return None;
+            }
+
+            let mut buffer = [0u8; 8]; 
+            let mut n = seed;
+            let len = CHARSET.len() as u64;
+
+            for i in 0..8 {
+                buffer[i] = CHARSET[(n % len) as usize];
+                n /= len;
+            }
+
+            let hash = simple_hash_bytes(&buffer);
+
+            if hash == target_hash {
+                let candidate = String::from_utf8_lossy(&buffer).to_string();
+                if candidate != name {
+                    found_flag.store(true, Ordering::Relaxed);
+                    return Some(candidate);
+                }
+            }
+            None
+        });
+
+        if let Some(ref s) = result {
+            println!("SEGUNDA PRÉ-IMAGEM ENCONTRADA: '{}'", s);
+        }
+        
+        result
+    }
+
+    pub fn run() {
+        println!();
+
+        let start = std::time::Instant::now();
+        
+        if let Some(str_random) = find_name_second_preimage("emmanuel") {
+            let hash_name = simple_hash("emmanuel");
+            let hash_str = simple_hash(&str_random);
+            
+            save_solution("05", "emmanuel", Some(&str_random));
+
+            println!("  '{}' -> {:08x}", "emmanuel", hash_name);
+            println!("  '{}' -> {:08x}", str_random, hash_str);
+            println!("  Tempo decorrido: {:?}", start.elapsed());
+        }
+    }
 }
