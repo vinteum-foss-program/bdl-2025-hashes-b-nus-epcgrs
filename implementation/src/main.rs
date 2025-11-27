@@ -5,6 +5,7 @@ use rand::Rng;
 use rayon::prelude::*;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use sha2::{Sha256, Digest};
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -16,7 +17,7 @@ fn main() {
         println!("  03 - First pre-image attack");
         println!("  04 - Collision with birthday paradox");
         println!("  05 - Second pre-image brute force");
-        // println!("  06 - Three partial collision using SHA256");
+        println!("  06 - Three partial collision using SHA256");
         return;
     }
 
@@ -26,6 +27,7 @@ fn main() {
         "03" => exercise03::run(),
         "04" => exercise04::run(),
         "05" => exercise05::run(),
+        "06" => exercise06::run(),
         _ => println!("Exercício não encontrado!"),
     }
 }
@@ -55,11 +57,12 @@ fn simple_hash(s: &str) -> u32 {
 }
 
 
-fn save_solution(exercise_number: &str, str1: &str, str2: Option<&str>) {
-
-    let content = match str2 {
-        Some(value_str) =>  format!("{},{}\n", str1, value_str),
-        None => format!("{}\n", str1)
+fn save_solution(exercise_number: &str, str1: &str, str2: Option<&str>, str3: Option<&str>) {
+    let content = match (str2, str3) {
+        (Some(s2), Some(s3)) => format!("{},{},{}\n", str1, s2, s3),
+        (Some(s2), None) => format!("{},{}\n", str1, s2),
+        (None, None) => format!("{}\n", str1),
+        (None, Some(_)) => panic!("str2 deve estar presente se str3 estiver presente"),
     };
 
     let path = format!("../solutions/exercise{}.txt", exercise_number);
@@ -81,6 +84,14 @@ fn generate_string(_len: usize) -> String {
             chars[idx] as char
         })
         .collect()
+}
+
+fn starts_with_hex_pattern(hash: &[u8], pattern: &str) -> bool {
+    let hex_hash = hash.iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<String>();
+    
+    hex_hash.starts_with(pattern)
 }
 
 mod exercise01 {
@@ -159,7 +170,7 @@ mod exercise01 {
         let (str1, str2) = swap_blocks();
 
         if verify_collision(&str1, &str2) {
-            save_solution("01", &str1, Some(&str2));
+            save_solution("01", &str1, Some(&str2), None);
         }
     }
 }
@@ -206,7 +217,7 @@ mod exercise02 {
             println!("  Encontrada: '{}'", solution);
             println!("  Hash: {:08x}", xor32_hash(&solution));
 
-            save_solution("02", &solution, None);
+            save_solution("02", &solution, None, None);
         } else {
             println!("Não foi possível encontrar segunda pré-imagem com métodos simples.");
         }
@@ -267,7 +278,7 @@ mod exercise03 {
             println!("  Encontrada: '{}'", solution);
             println!("  Hash: {:08x}", xor32_hash(&solution));
 
-            save_solution("03", &solution, None);
+            save_solution("03", &solution, None, None);
         } else {
             println!("Não foi possível encontrar pré-imagem com métodos simples.");
         }
@@ -315,7 +326,7 @@ mod exercise04 {
             println!("  '{}' -> {:08x}", str2, hash2);
             println!("  Iguais? {}", hash1 == hash2);
 
-            save_solution("04", &str1, Some(&str2));
+            save_solution("04", &str1, Some(&str2), None);
         }
     }
 
@@ -373,11 +384,66 @@ mod exercise05 {
             let hash_name = simple_hash("emmanuel");
             let hash_str = simple_hash(&str_random);
             
-            save_solution("05", "emmanuel", Some(&str_random));
+            save_solution("05", "emmanuel", Some(&str_random), None);
 
             println!("  '{}' -> {:08x}", "emmanuel", hash_name);
             println!("  '{}' -> {:08x}", str_random, hash_str);
             println!("  Tempo decorrido: {:?}", start.elapsed());
         }
+    }
+}
+
+mod exercise06 {
+    use super::*;
+
+    fn find_partial_collision(prefix: &str, hex_pattern: &str) -> String {
+        let found = Arc::new(AtomicBool::new(false));
+        let num_threads = rayon::current_num_threads();
+
+        let result = (0..num_threads)
+            .into_par_iter()
+            .find_map_any(|thread_id| {
+                let mut counter = thread_id as u64;
+                let max_iterations = 100_000_000_u64;
+                
+                while counter < max_iterations {
+                    if found.load(Ordering::Relaxed) {
+                        return None;
+                    }
+                    
+                    let candidate = format!("{}{}", prefix, counter);
+                    let hash = Sha256::digest(candidate.as_bytes());
+                    
+                    if starts_with_hex_pattern(&hash, hex_pattern) {
+                        found.store(true, Ordering::Relaxed);
+                        return Some(candidate);
+                    }
+                    
+                    counter += num_threads as u64;
+                }
+                
+                None
+        });
+
+        result.expect("Nenhuma colisão encontrada")
+    }
+
+    pub fn run () {
+        println!();
+
+        let start = std::time::Instant::now();
+
+        let result1 = find_partial_collision("bitcoin", "cafe");
+        println!("Encontrado para 0xcafe: {}", result1);
+
+        let result2 = find_partial_collision("bitcoin", "faded");
+        println!("Encontrado para 0xfaded: {}", result2);
+
+        let result3 = find_partial_collision("bitcoin", "decade");
+        println!("Encontrado para 0xdecade: {}", result3);
+
+        println!("\n\n  Tempo decorrido: {:?}", start.elapsed());
+
+        save_solution("06", &result1, Some(&result2), Some(&result3));
     }
 }
