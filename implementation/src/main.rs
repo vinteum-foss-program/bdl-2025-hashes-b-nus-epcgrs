@@ -59,9 +59,9 @@ fn simple_hash(s: &str) -> u32 {
 
 fn save_solution(exercise_number: &str, str1: &str, str2: Option<&str>, str3: Option<&str>) {
     let content = match (str2, str3) {
-        (Some(s2), Some(s3)) => format!("{},{},{}\n", str1, s2, s3),
-        (Some(s2), None) => format!("{},{}\n", str1, s2),
-        (None, None) => format!("{}\n", str1),
+        (Some(s2), Some(s3)) => format!("{},{},{}", str1, s2, s3),
+        (Some(s2), None) => format!("{},{}", str1, s2),
+        (None, None) => format!("{}", str1),
         (None, Some(_)) => panic!("str2 deve estar presente se str3 estiver presente"),
     };
 
